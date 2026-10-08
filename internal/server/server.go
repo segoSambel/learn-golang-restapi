@@ -6,11 +6,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/httplog/v3"
+	"github.com/segoSambel/learn-golang-restapi/internal/auth"
 	"github.com/segoSambel/learn-golang-restapi/internal/httputil"
 	"github.com/segoSambel/learn-golang-restapi/internal/user"
 )
 
-func New(logger *slog.Logger, userHandler *user.Handler) http.Handler {
+func New(logger *slog.Logger, authHandler *auth.Handler, userHandler *user.Handler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(httplog.RequestLogger(logger, &httplog.Options{
@@ -26,7 +27,8 @@ func New(logger *slog.Logger, userHandler *user.Handler) http.Handler {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Post("/users", userHandler.Create)
+		r.Mount("/auth", authHandler.Routes())
+		r.Mount("/users", userHandler.Routes(authHandler.RequireAuth))
 	})
 
 	return r

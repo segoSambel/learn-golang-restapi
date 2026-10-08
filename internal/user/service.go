@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/segoSambel/learn-golang-restapi/internal/database"
 	db "github.com/segoSambel/learn-golang-restapi/internal/database/generated"
 	"golang.org/x/crypto/bcrypt"
@@ -13,10 +15,12 @@ import (
 
 var (
 	ErrEmailTaken = errors.New("email already registered")
+	ErrNotFound   = errors.New("user not found")
 )
 
 type Store interface {
 	CreateUser(ctx context.Context, arg db.CreateUserParams) (db.User, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (db.User, error)
 }
 
 type Service struct {
@@ -47,16 +51,37 @@ func (s *Service) Create(ctx context.Context, req CreateUserRequest) (UserRespon
 			PasswordHash: string(passwordHash),
 		},
 	)
+	if database.IsUniqueViolation(err) {
+		return UserResponse{}, ErrEmailTaken
+	}
 	if err != nil {
-		if database.IsUniqueViolation(err) {
-			return UserResponse{}, ErrEmailTaken
-		}
 		return UserResponse{}, fmt.Errorf("create user: %w", err)
 	}
 
+	return toResponse(user), nil
+}
+
+func (s *Service) Get(ctx context.Context, id string) (UserResponse, error) {
+	var userID pgtype.UUID
+	if err := userID.Scan(id); err != nil {
+		return UserResponse{}, ErrNotFound
+	}
+
+	user, err := s.store.GetUserByID(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserResponse{}, ErrNotFound
+	}
+	if err != nil {
+		return UserResponse{}, fmt.Errorf("get user: %w", err)
+	}
+
+	return toResponse(user), nil
+}
+
+func toResponse(user db.User) UserResponse {
 	return UserResponse{
 		ID:        user.ID.String(),
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt.Time,
-	}, nil
+	}
 }

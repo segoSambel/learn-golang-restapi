@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/segoSambel/learn-golang-restapi/internal/auth"
 	"github.com/segoSambel/learn-golang-restapi/internal/config"
 	"github.com/segoSambel/learn-golang-restapi/internal/database"
 	"github.com/segoSambel/learn-golang-restapi/internal/server"
@@ -51,12 +52,18 @@ func run(logger *slog.Logger) error {
 	}
 	defer db.Close()
 
-	userService := user.NewService(dbgen.New(db))
-	userHandler := user.NewHandler(userService, newValidator())
+	queries := dbgen.New(db)
+	validate := newValidator()
+
+	authService := auth.NewService(queries, cfg.Auth.JWTSecret, cfg.Auth.TokenTTL)
+	authHandler := auth.NewHandler(authService, validate)
+
+	userService := user.NewService(queries)
+	userHandler := user.NewHandler(userService, validate)
 
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
-		Handler:           server.New(logger, userHandler),
+		Handler:           server.New(logger, authHandler, userHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
