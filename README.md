@@ -18,6 +18,7 @@
 - **Type-Safe Database Operations** — Employs `sqlc` to generate performant and type-safe Go database code directly from raw SQL files.
 - **Connection Pooling** — Uses `pgx/v5` connection pools for robust, concurrent PostgreSQL connectivity.
 - **Schema Migrations** — Up and down SQL migrations under `migrations/`, applied with the `golang-migrate` CLI.
+- **JWT Authentication** — Issues HS256 access tokens on login via `golang-jwt` and protects routes with a bearer-token middleware.
 - **Secure Password Hashing** — Encrypts passwords using `bcrypt` (under `golang.org/x/crypto`) prior to database storage.
 - **Strict Request Validation** — Integrates `go-playground/validator/v10` to enforce request schema validation constraints (e.g. minimum password lengths, email structure).
 - **Structured Request Logging** — Logs every request as JSON through `go-chi/httplog`, including the underlying error on 5xx responses.
@@ -48,7 +49,8 @@ This project is structured as a single-process application with a clean layered 
 | [`internal/database`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/database) | Database pool initialization logic and pgx error translators. |
 | [`internal/database/generated`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/database/generated) | Safe generated Go client mappings produced by `sqlc`. |
 | [`internal/database/queries`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/database/queries) | Raw, query-specific `.sql` files containing application database requirements. |
-| [`internal/httputil`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/httputil) | Standard JSON response payloads and unified API error payloads helper wrappers. |
+| [`internal/auth`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/auth) | Login, JWT issuing and verification, and the `RequireAuth` middleware. |
+| [`internal/httputil`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/httputil) | Request body binding and validation, JSON responses, and unified API error payloads. |
 | [`internal/server`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/server) | HTTP routes registration, CORS configs, and middleware chains using go-chi. |
 | [`internal/user`](file:///home/husain/dev/personal/learn/learn-golang-restapi/internal/user) | Core user management business domain containing DTOs, HTTP controllers, and database handlers. |
 | [`migrations`](file:///home/husain/dev/personal/learn/learn-golang-restapi/migrations) | Raw database schema migrations containing baseline tables, indices, and constraints. |
@@ -123,6 +125,13 @@ All variables are loaded inside [`internal/config/config.go`](file:///home/husai
 |:---|:---|:---|
 | `DATABASE_URL` | — | **Required**. Connection string URL (e.g. `postgres://user:password@host:5432/dbname?sslmode=disable`). |
 
+### Auth Configs
+
+| Variable | Default | Description |
+|:---|:---|:---|
+| `JWT_SECRET` | — | **Required**. Secret used to sign and verify access tokens. Use a long random string. |
+| `JWT_TTL` | `24h` | Access token lifetime, as a Go duration (e.g. `15m`, `24h`). |
+
 ---
 
 ## Project Structure
@@ -133,6 +142,10 @@ learn-golang-restapi/
 │   └── api/
 │       └── main.go                    # Application entrypoint
 ├── internal/
+│   ├── auth/
+│   │   ├── dto.go                     # Login request and token response
+│   │   ├── handler.go                 # Login endpoint and RequireAuth middleware
+│   │   └── service.go                 # Credential check, JWT signing and verification
 │   ├── config/
 │   │   └── config.go                  # Configuration parser using env variables
 │   ├── database/
@@ -142,6 +155,7 @@ learn-golang-restapi/
 │   │   └── queries/
 │   │       └── users.sql              # Raw SQL queries for SQLC
 │   ├── httputil/
+│   │   ├── bind.go                    # Request body decoding and validation
 │   │   ├── error.go                   # Standard error payload wrappers
 │   │   └── json.go                    # Standard JSON response serializer
 │   ├── server/
@@ -169,6 +183,8 @@ learn-golang-restapi/
 | Method | Path | Authority | Description |
 |:---|:---|:---|:---|
 | `POST` | `/api/v1/users` | Public | Registers a new user. Performs email format validation and hashes passwords with bcrypt before saving. |
+| `GET` | `/api/v1/users/me` | Bearer token | Returns the authenticated user. |
+| `POST` | `/api/v1/auth/login` | Public | Verifies email and password and returns an access token. |
 
 **Request Body Structure (`POST /api/v1/users`):**
 ```json
@@ -207,6 +223,15 @@ learn-golang-restapi/
   }
 }
 ```
+
+**Login Response (`POST /api/v1/auth/login`, `200 OK`):**
+```json
+{
+  "access_token": "<jwt>",
+  "expires_at": "2026-08-13T10:00:00Z"
+}
+```
+Wrong email or password returns `401` with code `INVALID_CREDENTIALS`. Send the token to protected routes as `Authorization: Bearer <jwt>`; a missing, invalid or expired token returns `401` with code `UNAUTHORIZED`.
 
 ---
 
