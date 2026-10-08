@@ -1,0 +1,42 @@
+-- name: CreateUser :one
+INSERT INTO users (
+    email,
+    password_hash
+)
+VALUES (
+    $1,
+    $2
+)
+RETURNING
+    id,
+    email,
+    password_hash,
+    created_at,
+    updated_at;
+
+
+-- name: GetUserByID :one
+SELECT
+    id,
+    email,
+    password_hash,
+    created_at,
+    updated_at
+FROM users
+WHERE id = $1;
+
+
+-- name: GetUserByEmail :one
+SELECT
+    id,
+    email,
+    password_hash,
+    created_at,
+    updated_at
+FROM users
+WHERE LOWER(email) = LOWER($1);
+
+
+-- name: DeleteUser :exec
+DELETE FROM users
+WHERE id = $1;
