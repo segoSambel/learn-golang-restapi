@@ -1,0 +1,14 @@
+@HOST = http://localhost:8080
+
+### Get Health
+GET {{HOST}}/health
+
+
+### Create User
+POST {{HOST}}/api/v1/users
+Content-Type: application/json
+
+{
+    "email": "jane.doe@example.com",
+    "password": "secret123"
+}
