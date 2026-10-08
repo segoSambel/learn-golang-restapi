@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
@@ -12,6 +13,12 @@ import (
 type Config struct {
 	HTTP     HTTPConfig
 	Database DatabaseConfig
+	Auth     AuthConfig
+}
+
+type AuthConfig struct {
+	JWTSecret string        `env:"JWT_SECRET,required,notEmpty"`
+	TokenTTL  time.Duration `env:"JWT_TTL" envDefault:"24h"`
 }
 
 type DatabaseConfig struct {
