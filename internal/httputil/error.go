@@ -1,6 +1,10 @@
 package httputil
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/go-chi/httplog/v3"
+)
 
 type ErrorResponse struct {
 	Error ErrorBody `json:"error"`
@@ -23,4 +27,9 @@ func Error(
 			Message: message,
 		},
 	})
+}
+
+func InternalError(w http.ResponseWriter, r *http.Request, err error) {
+	_ = httplog.SetError(r.Context(), err)
+	Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 }
